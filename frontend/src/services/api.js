@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Set up base Axios config
-axios.defaults.baseURL = ''; // Using Vite proxy
+axios.defaults.baseURL = import.meta.env.VITE_API_URL;// Using Vite proxy
 const token = localStorage.getItem('token');
 if (token) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
