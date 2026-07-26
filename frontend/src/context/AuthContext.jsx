@@ -15,20 +15,12 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-      // 🔥 instant restore (optional but good)
-      const savedUser = localStorage.getItem("user");
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-      }
-
       try {
         const res = await axios.get(
           `${import.meta.env.VITE_API_URL}/api/auth/me`
         );
 
         setUser(res.data);
-
-        // 🔥 update localStorage
         localStorage.setItem("user", JSON.stringify(res.data));
 
         fetchNotifications();
@@ -40,13 +32,10 @@ export const AuthProvider = ({ children }) => {
     }
 
     setLoading(false);
-  };
+  }; // ✅ THIS LINE FIXES YOUR ERROR
 
-  checkLoggedIn();
+  checkLoggedIn(); // ✅ now it's safe
 }, []);
-
-    checkLoggedIn();
-  }, []);
 
   const login = async (email, password) => {
     setLoading(true);
