@@ -1,3 +1,4 @@
+import cors from 'cors';
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -22,6 +23,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files for resume uploads
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+app.use(cors({
+  origin: 'https://job-portal-ten-sooty.vercel.app',
+  credentials: true
+}));
 
 // Routes
 app.use('/api/auth', authRoutes);
