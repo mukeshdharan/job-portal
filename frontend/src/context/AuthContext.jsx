@@ -9,22 +9,41 @@ export const AuthProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    const checkLoggedIn = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        try {
-          const res = await axios.get('/api/auth/me');
-          setUser(res.data);
-          // Fetch notifications if logged in
-          fetchNotifications();
-        } catch (error) {
-          console.error('Session validation failed:', error);
-          logout();
-        }
+  const checkLoggedIn = async () => {
+    const token = localStorage.getItem('token');
+
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      // 🔥 instant restore (optional but good)
+      const savedUser = localStorage.getItem("user");
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
       }
-      setLoading(false);
-    };
+
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/auth/me`
+        );
+
+        setUser(res.data);
+
+        // 🔥 update localStorage
+        localStorage.setItem("user", JSON.stringify(res.data));
+
+        fetchNotifications();
+
+      } catch (error) {
+        console.error('Session validation failed:', error);
+        logout();
+      }
+    }
+
+    setLoading(false);
+  };
+
+  checkLoggedIn();
+}, []);
 
     checkLoggedIn();
   }, []);
