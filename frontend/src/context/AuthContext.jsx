@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
         setUser(res.data);
         localStorage.setItem("user", JSON.stringify(res.data));
 
-        fetchNotifications();
+        //fetchNotifications();
 
       } catch (error) {
         console.error('Session validation failed:', error);
