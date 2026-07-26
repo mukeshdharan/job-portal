@@ -33,18 +33,18 @@ const API = import.meta.env.VITE_API_URL;
 
 export const profileService = {
   update: (data) =>
-    axios.put(`${API}/api/users/profile`, data).then(res => res.data),
+    axios.put('/api/users/profile', data).then(res => res.data),
 
   uploadResume: (formData) =>
-    axios.post(`${API}/api/users/profile/resume`, formData, {
+    axios.post('/api/users/profile/resume', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     }).then(res => res.data),
 
   getAdminStats: () =>
-    axios.get(`${API}/api/users/admin/stats`).then(res => res.data),
+    axios.get('/api/users/admin/stats').then(res => res.data),
 
   getRecruiterStats: () =>
-    axios.get(`${API}/api/users/recruiter/stats`).then(res => res.data)
+    axios.get('/api/users/recruiter/stats').then(res => res.data)
 };
