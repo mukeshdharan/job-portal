@@ -52,6 +52,42 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Job Portal backend is running.' });
 });
 
+// Database diagnostics route
+app.get('/db-diagnostics', async (req, res) => {
+  try {
+    const { query } = require('./config/db');
+    const result = await query.get('SELECT NOW()');
+    const tables = await query.all(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    res.json({
+      status: 'Connected',
+      time: result?.now || null,
+      tables: tables.map(t => t.table_name),
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        HAS_DATABASE_URL: !!process.env.DATABASE_URL,
+        DATABASE_URL_CHAR_COUNT: process.env.DATABASE_URL?.length,
+        DATABASE_URL_START: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 15) : null
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'Connection Failed',
+      error: err.message,
+      stack: err.stack,
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        HAS_DATABASE_URL: !!process.env.DATABASE_URL,
+        DATABASE_URL_CHAR_COUNT: process.env.DATABASE_URL?.length,
+        DATABASE_URL_START: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 15) : null
+      }
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

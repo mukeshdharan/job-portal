@@ -8,9 +8,12 @@ if (!connectionString) {
 
 const pool = new Pool({
   connectionString,
-  ssl: connectionString && (connectionString.includes('sslmode=require') || connectionString.includes('neon.tech')) 
-    ? { rejectUnauthorized: false } 
-    : false
+  ssl: connectionString && (
+    connectionString.includes('sslmode=require') || 
+    connectionString.includes('neon.tech') || 
+    process.env.NODE_ENV === 'production' ||
+    (!connectionString.includes('localhost') && !connectionString.includes('127.0.0.1'))
+  ) ? { rejectUnauthorized: false } : false
 });
 
 // Helper functions to use promises and emulate SQLite-like API
