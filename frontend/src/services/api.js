@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-// Set up base Axios config
-axios.defaults.baseURL = import.meta.env.VITE_API_URL;// Using Vite proxy
+// Set the backend base URL for all axios calls (production: Render, dev: proxied by Vite)
+if (import.meta.env.VITE_API_URL) {
+  axios.defaults.baseURL = import.meta.env.VITE_API_URL;
+}
 const token = localStorage.getItem('token');
 if (token) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -28,9 +30,6 @@ export const interviewService = {
   getInterviews: () => axios.get('/api/interviews').then(res => res.data),
   updateStatus: (id, status, notes) => axios.patch(`/api/interviews/${id}`, { status, notes }).then(res => res.data),
 };
-
-const API = import.meta.env.VITE_API_URL;
-
 export const profileService = {
   update: (data) =>
     axios.put('/api/users/profile', data).then(res => res.data),

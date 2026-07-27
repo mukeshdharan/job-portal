@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
+// Ensure axios always points to the backend API in all environments
+if (import.meta.env.VITE_API_URL) {
+  axios.defaults.baseURL = import.meta.env.VITE_API_URL;
+}
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -41,7 +46,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const res = await axios.post('/api/auth/login', { email, password });
-      const { token, user: loggedUser } = res.data;
+      const { token } = res.data;
       localStorage.setItem('token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       

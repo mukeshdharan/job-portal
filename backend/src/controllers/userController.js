@@ -49,17 +49,27 @@ exports.uploadResume = async (req, res) => {
     return res.status(400).json({ message: 'No file uploaded.' });
   }
 
-  const fileUrl = `/uploads/${req.file.filename}`;
-
   try {
+    // Convert buffer to base64 data URL so it persists in the DB
+    // and is not lost on Render's ephemeral filesystem resets
+    const ext = require('path').extname(req.file.originalname).toLowerCase();
+    const mimeTypes = {
+      '.pdf': 'application/pdf',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    };
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+    const base64Data = req.file.buffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
     await query.run(
       'UPDATE candidates SET resume_url = ? WHERE user_id = ?',
-      [fileUrl, req.user.id]
+      [dataUrl, req.user.id]
     );
 
     res.json({
       message: 'Resume uploaded successfully.',
-      resumeUrl: fileUrl
+      resumeUrl: dataUrl
     });
   } catch (error) {
     console.error('uploadResume error:', error);

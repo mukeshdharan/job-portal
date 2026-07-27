@@ -192,12 +192,18 @@ const Profile = () => {
                       <div>
                         <p className="text-xs font-bold text-slate-700">Resume Uploaded</p>
                         <a
-                          href={user.profile.resume_url}
+                          href={
+                            // Handle base64 data URLs (new) and old relative /uploads/ paths
+                            user.profile.resume_url.startsWith('data:')
+                              ? user.profile.resume_url
+                              : `${import.meta.env.VITE_API_URL || ''}${user.profile.resume_url}`
+                          }
+                          download="resume"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[10px] text-brand-550 hover:underline inline-block mt-0.5"
                         >
-                          View Current Resume Document
+                          View / Download Resume
                         </a>
                       </div>
                     ) : (
