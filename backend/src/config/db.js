@@ -1,9 +1,9 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  console.error("Warning: DATABASE_URL is not set!");
+const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_zXTKcoMh1aN7@ep-muddy-tree-az35sk24.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+if (!process.env.DATABASE_URL) {
+  console.log("Using default fallback DATABASE_URL");
 }
 
 const pool = new Pool({
