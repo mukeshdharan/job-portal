@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { jobService } from '../services/api';
 import JobCard from '../components/JobCard';
-import { Search, MapPin, SlidersHorizontal, Loader2, ArrowLeft, ArrowRight, Eye, Edit, Trash, Plus } from 'lucide-react';
+import { Search, MapPin, SlidersHorizontal, Loader2, ArrowLeft, ArrowRight, Eye, Edit, Trash, Plus, Briefcase } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Home = () => {
