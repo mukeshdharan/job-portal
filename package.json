@@ -1,4 +1,10 @@
 {
+  "name": "job-portal-root",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "npm install --prefix backend",
+    "start": "npm start --prefix backend"
+  },
   "dependencies": {
     "cors": "^2.8.6"
   }

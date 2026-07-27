@@ -1,41 +1,48 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-const dbPath = path.resolve(__dirname, '../../database.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Database connection failed:', err.message);
-  } else {
-    console.log('Connected to SQLite database at:', dbPath);
-  }
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error("Warning: DATABASE_URL is not set!");
+}
+
+const pool = new Pool({
+  connectionString,
+  ssl: connectionString && (connectionString.includes('sslmode=require') || connectionString.includes('neon.tech')) 
+    ? { rejectUnauthorized: false } 
+    : false
 });
 
-// Helper functions to use promises with sqlite3
+// Helper functions to use promises and emulate SQLite-like API
 const query = {
-  run(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      db.run(sql, params, function (err) {
-        if (err) reject(err);
-        else resolve({ id: this.lastID, changes: this.changes });
-      });
-    });
+  async run(sql, params = []) {
+    let idx = 1;
+    let finalSql = sql.replace(/\?/g, () => `$${idx++}`);
+    
+    // Automatically add RETURNING id for INSERT queries if not already present
+    if (finalSql.trim().toUpperCase().startsWith('INSERT') && !finalSql.toUpperCase().includes('RETURNING')) {
+      finalSql += ' RETURNING id';
+    }
+
+    const res = await pool.query(finalSql, params);
+    return {
+      id: res.rows[0]?.id || null,
+      changes: res.rowCount
+    };
   },
-  get(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      db.get(sql, params, (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+
+  async get(sql, params = []) {
+    let idx = 1;
+    const finalSql = sql.replace(/\?/g, () => `$${idx++}`);
+    const res = await pool.query(finalSql, params);
+    return res.rows[0] || null;
   },
-  all(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      db.all(sql, params, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
+
+  async all(sql, params = []) {
+    let idx = 1;
+    const finalSql = sql.replace(/\?/g, () => `$${idx++}`);
+    const res = await pool.query(finalSql, params);
+    return res.rows;
   }
 };
 
@@ -44,19 +51,19 @@ async function initDB() {
     // 1. Create Users Table
     await query.run(`
       CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         name TEXT NOT NULL,
         role TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // 2. Create Recruiters Table
     await query.run(`
       CREATE TABLE IF NOT EXISTS recruiters (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE NOT NULL,
         company_name TEXT NOT NULL,
         company_website TEXT,
@@ -68,7 +75,7 @@ async function initDB() {
     // 3. Create Candidates Table
     await query.run(`
       CREATE TABLE IF NOT EXISTS candidates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE NOT NULL,
         phone TEXT,
         skills TEXT,
@@ -82,7 +89,7 @@ async function initDB() {
     // 4. Create Jobs Table
     await query.run(`
       CREATE TABLE IF NOT EXISTS jobs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         recruiter_id INTEGER NOT NULL,
         title TEXT NOT NULL,
         company_name TEXT NOT NULL,
@@ -92,7 +99,7 @@ async function initDB() {
         experience_required TEXT,
         description TEXT NOT NULL,
         status TEXT DEFAULT 'open',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (recruiter_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
@@ -100,11 +107,11 @@ async function initDB() {
     // 5. Create Applications Table
     await query.run(`
       CREATE TABLE IF NOT EXISTS applications (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         job_id INTEGER NOT NULL,
         candidate_id INTEGER NOT NULL,
         status TEXT DEFAULT 'applied',
-        applied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
         FOREIGN KEY (candidate_id) REFERENCES users(id) ON DELETE CASCADE
       )
@@ -113,12 +120,12 @@ async function initDB() {
     // 6. Create Interviews Table
     await query.run(`
       CREATE TABLE IF NOT EXISTS interviews (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         application_id INTEGER NOT NULL,
-        scheduled_time DATETIME NOT NULL,
+        scheduled_time TIMESTAMP NOT NULL,
         status TEXT DEFAULT 'scheduled',
         notes TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
       )
     `);
@@ -126,11 +133,11 @@ async function initDB() {
     // 7. Create Notifications Table
     await query.run(`
       CREATE TABLE IF NOT EXISTS notifications (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         message TEXT NOT NULL,
         is_read INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
@@ -144,7 +151,7 @@ async function initDB() {
 
 async function seedData() {
   const userCount = await query.get('SELECT COUNT(*) as count FROM users');
-  if (userCount.count > 0) {
+  if (parseInt(userCount.count) > 0) {
     console.log('Database already has data. Skipping seed.');
     return;
   }
@@ -241,7 +248,7 @@ async function seedData() {
 }
 
 module.exports = {
-  db,
+  pool,
   query,
   initDB
 };

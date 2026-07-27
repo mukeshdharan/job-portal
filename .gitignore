@@ -11,3 +11,13 @@ build/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# SQLite database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Uploads directory
+backend/uploads/*
+!backend/uploads/.gitkeep
+

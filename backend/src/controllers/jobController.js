@@ -8,18 +8,18 @@ exports.getJobs = async (req, res) => {
   const params = [];
 
   if (search) {
-    sql += ' AND (title LIKE ? OR company_name LIKE ? OR description LIKE ?)';
+    sql += ' AND (title ILIKE ? OR company_name ILIKE ? OR description ILIKE ?)';
     const searchVal = `%${search}%`;
     params.push(searchVal, searchVal, searchVal);
   }
 
   if (location) {
-    sql += ' AND location LIKE ?';
+    sql += ' AND location ILIKE ?';
     params.push(`%${location}%`);
   }
 
   if (skills) {
-    sql += ' AND skills_required LIKE ?';
+    sql += ' AND skills_required ILIKE ?';
     params.push(`%${skills}%`);
   }
 

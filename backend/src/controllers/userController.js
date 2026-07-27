@@ -105,7 +105,7 @@ exports.getAdminStats = async (req, res) => {
 
     // Analytics lists grouped by Month
     const userGrowth = await query.all(`
-      SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count
+      SELECT to_char(created_at, 'YYYY-MM') as month, COUNT(*) as count
       FROM users
       GROUP BY month
       ORDER BY month ASC
@@ -113,7 +113,7 @@ exports.getAdminStats = async (req, res) => {
     `);
 
     const appGrowth = await query.all(`
-      SELECT strftime('%Y-%m', applied_at) as month, COUNT(*) as count
+      SELECT to_char(applied_at, 'YYYY-MM') as month, COUNT(*) as count
       FROM applications
       GROUP BY month
       ORDER BY month ASC
@@ -121,7 +121,7 @@ exports.getAdminStats = async (req, res) => {
     `);
 
     const jobGrowth = await query.all(`
-      SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count
+      SELECT to_char(created_at, 'YYYY-MM') as month, COUNT(*) as count
       FROM jobs
       GROUP BY month
       ORDER BY month ASC
