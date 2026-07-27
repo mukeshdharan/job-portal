@@ -6,6 +6,7 @@ const upload = require('../middleware/uploadMiddleware');
 
 router.put('/profile', authMiddleware, userController.updateProfile);
 router.post('/profile/resume', authMiddleware, authorizeRoles('candidate'), upload.single('resume'), userController.uploadResume);
+router.get('/profile/resume', authMiddleware, authorizeRoles('candidate'), userController.getResume);
 router.get('/notifications', authMiddleware, userController.getNotifications);
 router.post('/notifications/read', authMiddleware, userController.markNotificationsRead);
 

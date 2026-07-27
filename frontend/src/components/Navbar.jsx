@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Bell, LogOut, User, Briefcase, ChevronDown } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 const Navbar = () => {
   const { user, logout, notifications, markNotificationsRead } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    // Use hard redirect instead of navigate() to avoid React state race condition
+    // where navigate fires before user state clears, leaving user on protected route
+    window.location.href = '/login';
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
@@ -112,7 +113,7 @@ const Navbar = () => {
                   <p className="text-[10px] font-medium text-slate-400 truncate">{user.email}</p>
                 </div>
                 
-                {user.role === 'candidate' && (
+                {(user.role === 'candidate' || user.role === 'recruiter') && (
                   <Link
                     to="/profile"
                     onClick={() => setShowUserMenu(false)}

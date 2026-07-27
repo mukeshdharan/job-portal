@@ -16,7 +16,16 @@ exports.updateProfile = async (req, res) => {
         [phone || '', skills || '', eduString, expString, userId]
       );
       
-      const updatedProfile = await query.get('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+      // Return profile without the large resume_url blob
+      const updatedProfile = await query.get(
+        'SELECT id, user_id, phone, skills, education, experience, resume_filename, (resume_url IS NOT NULL AND resume_url != \'\') as has_resume FROM candidates WHERE user_id = ?',
+        [userId]
+      );
+      if (updatedProfile) {
+        try { updatedProfile.education = JSON.parse(updatedProfile.education || '[]'); } catch(e) { updatedProfile.education = []; }
+        try { updatedProfile.experience = JSON.parse(updatedProfile.experience || '[]'); } catch(e) { updatedProfile.experience = []; }
+        updatedProfile.has_resume = !!updatedProfile.has_resume;
+      }
       return res.json({ message: 'Profile updated successfully.', profile: updatedProfile });
     } 
     
@@ -52,7 +61,8 @@ exports.uploadResume = async (req, res) => {
   try {
     // Convert buffer to base64 data URL so it persists in the DB
     // and is not lost on Render's ephemeral filesystem resets
-    const ext = require('path').extname(req.file.originalname).toLowerCase();
+    const path = require('path');
+    const ext = path.extname(req.file.originalname).toLowerCase();
     const mimeTypes = {
       '.pdf': 'application/pdf',
       '.doc': 'application/msword',
@@ -61,19 +71,41 @@ exports.uploadResume = async (req, res) => {
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
     const base64Data = req.file.buffer.toString('base64');
     const dataUrl = `data:${mimeType};base64,${base64Data}`;
+    const filename = req.file.originalname;
 
     await query.run(
-      'UPDATE candidates SET resume_url = ? WHERE user_id = ?',
-      [dataUrl, req.user.id]
+      'UPDATE candidates SET resume_url = ?, resume_filename = ? WHERE user_id = ?',
+      [dataUrl, filename, req.user.id]
     );
 
     res.json({
       message: 'Resume uploaded successfully.',
-      resumeUrl: dataUrl
+      hasResume: true,
+      resumeFilename: filename
     });
   } catch (error) {
     console.error('uploadResume error:', error);
     res.status(500).json({ message: 'Server error saving resume.' });
+  }
+};
+
+// Returns the resume data URL for download (separate endpoint to avoid bloating /me)
+exports.getResume = async (req, res) => {
+  try {
+    const candidate = await query.get(
+      'SELECT resume_url, resume_filename FROM candidates WHERE user_id = ?',
+      [req.user.id]
+    );
+    if (!candidate || !candidate.resume_url) {
+      return res.status(404).json({ message: 'No resume found.' });
+    }
+    res.json({
+      resumeUrl: candidate.resume_url,
+      resumeFilename: candidate.resume_filename || 'resume'
+    });
+  } catch (error) {
+    console.error('getResume error:', error);
+    res.status(500).json({ message: 'Server error fetching resume.' });
   }
 };
 

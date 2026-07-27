@@ -41,6 +41,9 @@ export const profileService = {
       }
     }).then(res => res.data),
 
+  getResume: () =>
+    axios.get('/api/users/profile/resume').then(res => res.data),
+
   getAdminStats: () =>
     axios.get('/api/users/admin/stats').then(res => res.data),
 

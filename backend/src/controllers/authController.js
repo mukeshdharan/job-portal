@@ -112,10 +112,17 @@ exports.getMe = async (req, res) => {
 
     let profile = null;
     if (user.role === 'candidate') {
-      profile = await query.get('SELECT * FROM candidates WHERE user_id = ?', [user.id]);
+      // Exclude resume_url (potentially 6MB+ base64) from the session check response
+      // Use GET /api/users/profile/resume to download resume on demand
+      profile = await query.get(
+        'SELECT id, user_id, phone, skills, education, experience, resume_filename, (resume_url IS NOT NULL AND resume_url != \'\') as has_resume FROM candidates WHERE user_id = ?',
+        [user.id]
+      );
       if (profile) {
         try { profile.education = JSON.parse(profile.education || '[]'); } catch(e) { profile.education = []; }
         try { profile.experience = JSON.parse(profile.experience || '[]'); } catch(e) { profile.experience = []; }
+        // Convert PostgreSQL boolean to JS boolean
+        profile.has_resume = !!profile.has_resume;
       }
     } else if (user.role === 'recruiter') {
       profile = await query.get('SELECT * FROM recruiters WHERE user_id = ?', [user.id]);

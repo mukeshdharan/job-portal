@@ -85,8 +85,14 @@ async function initDB() {
         education TEXT,
         experience TEXT,
         resume_url TEXT,
+        resume_filename TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
+    `);
+
+    // Add resume_filename column if it doesn't exist (safe migration for existing DBs)
+    await query.run(`
+      ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_filename TEXT
     `);
 
     // 4. Create Jobs Table

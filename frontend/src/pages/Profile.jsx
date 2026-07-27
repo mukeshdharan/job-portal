@@ -13,7 +13,8 @@ import {
   Plus,
   Loader2,
   CheckCircle2,
-  Globe
+  Globe,
+  Download
 } from 'lucide-react';
 
 const Profile = () => {
@@ -27,11 +28,23 @@ const Profile = () => {
   const [phone, setPhone] = useState(user?.profile?.phone || '');
   const [skills, setSkills] = useState(user?.profile?.skills || '');
   
-  const [education, setEducation] = useState(user?.profile?.education || []);
-  const [experience, setExperience] = useState(user?.profile?.experience || []);
+  const [education, setEducation] = useState(() => {
+    const edu = user?.profile?.education;
+    if (Array.isArray(edu)) return edu;
+    try { return JSON.parse(edu || '[]'); } catch { return []; }
+  });
+  const [experience, setExperience] = useState(() => {
+    const exp = user?.profile?.experience;
+    if (Array.isArray(exp)) return exp;
+    try { return JSON.parse(exp || '[]'); } catch { return []; }
+  });
 
-  const [resumeFile, setResumeFile] = useState(null);
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [downloadingResume, setDownloadingResume] = useState(false);
+
+  // Resume state: use has_resume from profile (no blob in session)
+  const [hasResume, setHasResume] = useState(user?.profile?.has_resume || false);
+  const [resumeFilename, setResumeFilename] = useState(user?.profile?.resume_filename || '');
 
   // 2. Recruiter States
   const [companyName, setCompanyName] = useState(user?.profile?.company_name || '');
@@ -43,8 +56,12 @@ const Profile = () => {
       if (user.role === 'candidate') {
         setPhone(user.profile?.phone || '');
         setSkills(user.profile?.skills || '');
-        setEducation(user.profile?.education || []);
-        setExperience(user.profile?.experience || []);
+        const edu = user.profile?.education;
+        setEducation(Array.isArray(edu) ? edu : (() => { try { return JSON.parse(edu || '[]'); } catch { return []; } })());
+        const exp = user.profile?.experience;
+        setExperience(Array.isArray(exp) ? exp : (() => { try { return JSON.parse(exp || '[]'); } catch { return []; } })());
+        setHasResume(user.profile?.has_resume || false);
+        setResumeFilename(user.profile?.resume_filename || '');
       } else if (user.role === 'recruiter') {
         setCompanyName(user.profile?.company_name || '');
         setCompanyWebsite(user.profile?.company_website || '');
@@ -106,6 +123,9 @@ const Profile = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Reset file input so same file can be re-uploaded
+    e.target.value = '';
+
     setUploadingResume(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -115,15 +135,39 @@ const Profile = () => {
 
     try {
       const res = await profileService.uploadResume(formData);
+      // Update local state — backend now returns has_resume flag, not the blob
+      setHasResume(true);
+      setResumeFilename(res.resumeFilename || file.name);
       updateProfileLocal({
         ...user.profile,
-        resume_url: res.resumeUrl
+        has_resume: true,
+        resume_filename: res.resumeFilename || file.name
       });
-      setSuccessMsg('Resume PDF uploaded successfully!');
+      setSuccessMsg(`Resume "${res.resumeFilename || file.name}" uploaded successfully!`);
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Error uploading file.');
+      setErrorMsg(err.response?.data?.message || 'Error uploading file. Max size is 5MB.');
     } finally {
       setUploadingResume(false);
+    }
+  };
+
+  // Fetch resume on demand and trigger browser download
+  const handleDownloadResume = async () => {
+    setDownloadingResume(true);
+    setErrorMsg('');
+    try {
+      const res = await profileService.getResume();
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = res.resumeUrl;
+      link.download = res.resumeFilename || 'resume';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      setErrorMsg('Could not download resume. Please try uploading again.');
+    } finally {
+      setDownloadingResume(false);
     }
   };
 
@@ -137,7 +181,7 @@ const Profile = () => {
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         {successMsg && (
           <div className="mb-6 flex items-center gap-2 rounded-xl bg-emerald-50 p-4 text-xs font-semibold text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="h-4.5 w-4.5" />
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
             <span>{successMsg}</span>
           </div>
         )}
@@ -176,63 +220,70 @@ const Profile = () => {
                     value={skills}
                     onChange={(e) => setSkills(e.target.value)}
                     className="block w-full rounded-xl border border-slate-200 py-3 px-4 text-xs text-slate-800 focus:border-brand-550 focus:outline-none focus:ring-1 focus:ring-brand-550 transition"
-                    placeholder="React, Express, SQLite, Node.js"
+                    placeholder="React, Express, Node.js, CSS"
                   />
                 </div>
               </div>
 
               {/* Resume Upload Card */}
               <div className="border-t border-slate-100 pt-6">
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Resume Document (.pdf, .doc, .docx)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Resume Document (.pdf, .doc, .docx — max 5MB)</label>
                 <div className="flex flex-col sm:flex-row items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
-                  <FileText className="h-10 w-10 text-brand-400" />
+                  <FileText className="h-10 w-10 text-brand-400 shrink-0" />
                   
-                  <div className="flex-1 text-center sm:text-left">
-                    {user?.profile?.resume_url ? (
+                  <div className="flex-1 text-center sm:text-left min-w-0">
+                    {hasResume ? (
                       <div>
                         <p className="text-xs font-bold text-slate-700">Resume Uploaded</p>
-                        <a
-                          href={
-                            // Handle base64 data URLs (new) and old relative /uploads/ paths
-                            user.profile.resume_url.startsWith('data:')
-                              ? user.profile.resume_url
-                              : `${import.meta.env.VITE_API_URL || ''}${user.profile.resume_url}`
-                          }
-                          download="resume"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[10px] text-brand-550 hover:underline inline-block mt-0.5"
-                        >
-                          View / Download Resume
-                        </a>
+                        <p className="text-[10px] text-slate-500 mt-0.5 truncate">{resumeFilename || 'resume file'}</p>
                       </div>
                     ) : (
                       <div>
                         <p className="text-xs font-bold text-slate-500">No Resume Uploaded</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Please upload a resume to enable job applications</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Upload a resume to enable job applications</p>
                       </div>
                     )}
                   </div>
 
-                  <div className="relative">
-                    <input
-                      type="file"
-                      id="resume-file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={handleResumeUpload}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="resume-file"
-                      className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm"
-                    >
-                      {uploadingResume ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="h-4 w-4 text-slate-400" />
-                      )}
-                      Upload Resume
-                    </label>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Download button — only when resume exists */}
+                    {hasResume && (
+                      <button
+                        type="button"
+                        onClick={handleDownloadResume}
+                        disabled={downloadingResume}
+                        className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2.5 text-xs font-semibold text-brand-600 hover:bg-brand-100 transition shadow-sm disabled:opacity-60"
+                      >
+                        {downloadingResume ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                        View
+                      </button>
+                    )}
+
+                    {/* Upload button */}
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="resume-file"
+                        accept=".pdf,.doc,.docx"
+                        onChange={handleResumeUpload}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="resume-file"
+                        className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm"
+                      >
+                        {uploadingResume ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4 text-slate-400" />
+                        )}
+                        {hasResume ? 'Replace' : 'Upload'}
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -241,7 +292,7 @@ const Profile = () => {
               <div className="border-t border-slate-100 pt-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                    <GraduationCap className="h-5.5 w-5.5 text-slate-400" />
+                    <GraduationCap className="h-5 w-5 text-slate-400" />
                     Education Details
                   </h4>
                   <button
@@ -266,7 +317,7 @@ const Profile = () => {
                             value={edu.degree}
                             required
                             onChange={(e) => handleEducationChange(index, 'degree', e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-brand-550"
+                            className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-none focus:border-brand-550"
                             placeholder="B.S. Computer Science"
                           />
                         </div>
@@ -277,7 +328,7 @@ const Profile = () => {
                             value={edu.school}
                             required
                             onChange={(e) => handleEducationChange(index, 'school', e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-brand-550"
+                            className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-none focus:border-brand-550"
                             placeholder="State University"
                           />
                         </div>
@@ -289,14 +340,14 @@ const Profile = () => {
                               value={edu.year}
                               required
                               onChange={(e) => handleEducationChange(index, 'year', e.target.value)}
-                              className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-brand-550"
+                              className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-none focus:border-brand-550"
                               placeholder="2025"
                             />
                           </div>
                           <button
                             type="button"
                             onClick={() => removeEducationRow(index)}
-                            className="text-red-500 hover:text-red-700 p-2 border border-slate-100 rounded-lg hover:bg-slate-50"
+                            className="text-red-500 hover:text-red-700 p-2 border border-slate-100 rounded-lg hover:bg-slate-50 mt-4"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -311,7 +362,7 @@ const Profile = () => {
               <div className="border-t border-slate-100 pt-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                    <Briefcase className="h-5.5 w-5.5 text-slate-400" />
+                    <Briefcase className="h-5 w-5 text-slate-400" />
                     Work Experience
                   </h4>
                   <button
@@ -336,7 +387,7 @@ const Profile = () => {
                             value={exp.role}
                             required
                             onChange={(e) => handleExperienceChange(index, 'role', e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-brand-550"
+                            className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-none focus:border-brand-550"
                             placeholder="Software Engineer"
                           />
                         </div>
@@ -347,7 +398,7 @@ const Profile = () => {
                             value={exp.company}
                             required
                             onChange={(e) => handleExperienceChange(index, 'company', e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-brand-550"
+                            className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-none focus:border-brand-550"
                             placeholder="Acme Corp"
                           />
                         </div>
@@ -359,14 +410,14 @@ const Profile = () => {
                               value={exp.duration}
                               required
                               onChange={(e) => handleExperienceChange(index, 'duration', e.target.value)}
-                              className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-brand-550"
+                              className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:outline-none focus:border-brand-550"
                               placeholder="e.g. 2 Years, 6 Mos"
                             />
                           </div>
                           <button
                             type="button"
                             onClick={() => removeExperienceRow(index)}
-                            className="text-red-500 hover:text-red-700 p-2 border border-slate-100 rounded-lg hover:bg-slate-50"
+                            className="text-red-500 hover:text-red-700 p-2 border border-slate-100 rounded-lg hover:bg-slate-50 mt-4"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -416,7 +467,7 @@ const Profile = () => {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-550 py-3 text-xs font-semibold text-white shadow-lg shadow-brand-550/20 hover:bg-brand-700 transition active:scale-[0.98] disabled:bg-slate-300"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-550 py-3 text-xs font-semibold text-white shadow-lg shadow-brand-550/20 hover:bg-brand-700 transition active:scale-[0.98] disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
           >
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
